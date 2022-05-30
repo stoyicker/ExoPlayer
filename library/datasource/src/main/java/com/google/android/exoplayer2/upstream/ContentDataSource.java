@@ -27,6 +27,7 @@ import android.media.MediaFormat;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.MediaStore;
+import android.util.Log;
 import androidx.annotation.DoNotInline;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
@@ -37,6 +38,7 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
+import java.util.Arrays;
 
 /** A {@link DataSource} for reading from a content URI. */
 public final class ContentDataSource extends BaseDataSource {
@@ -64,6 +66,9 @@ public final class ContentDataSource extends BaseDataSource {
   @Nullable private FileInputStream inputStream;
   private long bytesRemaining;
   private boolean opened;
+
+  private byte[] readData;
+  private int readBytes;
 
   /** @param context A context. */
   public ContentDataSource(Context context) {
@@ -163,6 +168,14 @@ public final class ContentDataSource extends BaseDataSource {
     }
     opened = true;
     transferStarted(dataSpec);
+
+    if (dataSpec.position == 0) {
+      readBytes = 0;
+      readData = new byte[0];
+    }
+
+    Log.e("TCDEBUG", "Opening at: " + dataSpec.position);
+    Log.e("TCDEBUG", "  > Resolved length: " + (bytesRemaining == C.LENGTH_UNSET ? "Unknown" : (dataSpec.position + bytesRemaining)));
     return dataSpec.length != C.LENGTH_UNSET ? dataSpec.length : bytesRemaining;
   }
 
@@ -190,6 +203,14 @@ public final class ContentDataSource extends BaseDataSource {
       bytesRemaining -= bytesRead;
     }
     bytesTransferred(bytesRead);
+
+    if (readData != null) {
+      this.readBytes += bytesRead;
+      int prevLength = this.readData.length;
+      this.readData = Arrays.copyOf(this.readData, this.readData.length + bytesRead);
+      System.arraycopy(buffer, offset, this.readData, prevLength, bytesRead);
+    }
+
     return bytesRead;
   }
 
@@ -202,6 +223,18 @@ public final class ContentDataSource extends BaseDataSource {
   @SuppressWarnings("Finally")
   @Override
   public void close() throws ContentDataSourceException {
+    if (readData != null) {
+      Log.e("TCDEBUG", "  > Read length: " + readData.length);
+      Log.e("TCDEBUG", "  > Read data hash: " + Arrays.hashCode(readData));
+      String hexStr = Util.toHexString(readData);
+      while (hexStr.length() > 100) {
+        Log.e("TCDEBUG", "  > " + hexStr.substring(0, 100));
+        hexStr = hexStr.substring(100);
+      }
+      Log.e("TCDEBUG", "  > " + hexStr +" [end]");
+      readData = null;
+    }
+
     uri = null;
     try {
       if (inputStream != null) {
@@ -234,11 +267,7 @@ public final class ContentDataSource extends BaseDataSource {
     public static void disableTranscoding(Bundle providerOptions) {
       ApplicationMediaCapabilities mediaCapabilities =
           new ApplicationMediaCapabilities.Builder()
-              .addSupportedVideoMimeType(MediaFormat.MIMETYPE_VIDEO_HEVC)
-              .addSupportedHdrType(MediaFeature.HdrType.DOLBY_VISION)
-              .addSupportedHdrType(MediaFeature.HdrType.HDR10)
-              .addSupportedHdrType(MediaFeature.HdrType.HDR10_PLUS)
-              .addSupportedHdrType(MediaFeature.HdrType.HLG)
+              .addUnsupportedVideoMimeType(MediaFormat.MIMETYPE_VIDEO_HEVC)
               .build();
       providerOptions.putParcelable(MediaStore.EXTRA_MEDIA_CAPABILITIES, mediaCapabilities);
     }

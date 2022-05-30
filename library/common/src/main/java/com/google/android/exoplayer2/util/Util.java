@@ -2620,7 +2620,7 @@ public final class Util {
   }
 
   @RequiresApi(api = Build.VERSION_CODES.M)
-  private static boolean requestExternalStoragePermission(Activity activity) {
+  public static boolean requestExternalStoragePermission(Activity activity) {
     if (activity.checkSelfPermission(permission.READ_EXTERNAL_STORAGE)
         != PackageManager.PERMISSION_GRANTED) {
       activity.requestPermissions(

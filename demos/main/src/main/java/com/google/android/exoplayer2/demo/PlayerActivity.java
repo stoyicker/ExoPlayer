@@ -338,9 +338,11 @@ public class PlayerActivity extends AppCompatActivity
         finish();
         return Collections.emptyList();
       }
-      if (Util.maybeRequestReadExternalStoragePermission(/* activity= */ this, mediaItem)) {
-        // The player will be reinitialized if the permission is granted.
-        return Collections.emptyList();
+      if (Util.SDK_INT >= 23) {
+        if (Util.requestExternalStoragePermission(/* activity= */ this)) {
+          // The player will be reinitialized if the permission is granted.
+          return Collections.emptyList();
+        }
       }
 
       MediaItem.DrmConfiguration drmConfiguration = mediaItem.localConfiguration.drmConfiguration;

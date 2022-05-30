@@ -80,6 +80,9 @@ public class IntentUtil {
       }
     } else {
       Uri uri = intent.getData();
+      if (uri.getScheme().equals("xx-content")) {
+        uri = uri.buildUpon().scheme("content").build();
+      }
       mediaItems.add(createMediaItemFromIntent(uri, intent, /* extrasKeySuffix= */ ""));
     }
     return mediaItems;
