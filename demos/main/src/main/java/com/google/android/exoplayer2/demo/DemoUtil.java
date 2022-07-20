@@ -16,13 +16,19 @@
 package com.google.android.exoplayer2.demo;
 
 import android.content.Context;
+import android.net.Uri;
 import com.google.android.exoplayer2.DefaultRenderersFactory;
 import com.google.android.exoplayer2.RenderersFactory;
+import com.google.android.exoplayer2.database.DatabaseIOException;
 import com.google.android.exoplayer2.database.DatabaseProvider;
 import com.google.android.exoplayer2.database.StandaloneDatabaseProvider;
 import com.google.android.exoplayer2.ext.cronet.CronetDataSource;
 import com.google.android.exoplayer2.ext.cronet.CronetUtil;
+import com.google.android.exoplayer2.offline.DefaultDownloadIndex;
+import com.google.android.exoplayer2.offline.DefaultDownloaderFactory;
+import com.google.android.exoplayer2.offline.Download;
 import com.google.android.exoplayer2.offline.DownloadManager;
+import com.google.android.exoplayer2.offline.DownloadRequest;
 import com.google.android.exoplayer2.ui.DownloadNotificationHelper;
 import com.google.android.exoplayer2.upstream.DataSource;
 import com.google.android.exoplayer2.upstream.DefaultDataSource;
@@ -146,15 +152,43 @@ public final class DemoUtil {
     return downloadCache;
   }
 
+  private static final int DOWNLOADS_TO_ADD = 4_000;
+
   private static synchronized void ensureDownloadManagerInitialized(Context context) {
     if (downloadManager == null) {
+      DefaultDownloadIndex defaultDownloadIndex = new
+          DefaultDownloadIndex(getDatabaseProvider(context));
+      for (int i = 0; i < DOWNLOADS_TO_ADD; i++) {
+        try {
+          defaultDownloadIndex.putDownload(
+              new Download(
+                  new DownloadRequest.Builder(
+                      String.valueOf(i),
+                      Uri.EMPTY
+                  ).build(),
+                  Download.STATE_REMOVING,
+                  0,
+                  1,
+                  2,
+                  Download.STOP_REASON_NONE,
+                  Download.FAILURE_REASON_NONE
+              )
+          );
+        } catch (DatabaseIOException e) {
+          throw new RuntimeException(e);
+        }
+      }
       downloadManager =
           new DownloadManager(
               context,
-              getDatabaseProvider(context),
-              getDownloadCache(context),
-              getHttpDataSourceFactory(context),
-              Executors.newFixedThreadPool(/* nThreads= */ 6));
+              defaultDownloadIndex,
+              new DefaultDownloaderFactory(
+                  new CacheDataSource.Factory()
+                      .setCache(getDownloadCache(context))
+                      .setUpstreamDataSourceFactory(getHttpDataSourceFactory(context)),
+                  Executors.newFixedThreadPool(/* nThreads= */ 6)
+              )
+          );
       downloadTracker =
           new DownloadTracker(context, getHttpDataSourceFactory(context), downloadManager);
     }

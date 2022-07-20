@@ -1051,6 +1051,7 @@ public final class DownloadManager {
       if (activeTask != null) {
         if (!activeTask.isRemove) {
           // Cancel the downloading task.
+          // Cancel the downloading task.
           activeTask.cancel(/* released= */ false);
         }
         // The activeTask is either a remove task, or a downloading task that we just canceled. In
