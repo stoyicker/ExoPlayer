@@ -16,7 +16,9 @@
 package androidx.media3.demo.main;
 
 import android.content.Context;
+import android.net.Uri;
 import androidx.annotation.OptIn;
+import androidx.media3.database.DatabaseIOException;
 import androidx.media3.database.DatabaseProvider;
 import androidx.media3.database.StandaloneDatabaseProvider;
 import androidx.media3.datasource.DataSource;
@@ -30,8 +32,12 @@ import androidx.media3.datasource.cronet.CronetDataSource;
 import androidx.media3.datasource.cronet.CronetUtil;
 import androidx.media3.exoplayer.DefaultRenderersFactory;
 import androidx.media3.exoplayer.RenderersFactory;
+import androidx.media3.exoplayer.offline.DefaultDownloadIndex;
+import androidx.media3.exoplayer.offline.DefaultDownloaderFactory;
+import androidx.media3.exoplayer.offline.Download;
 import androidx.media3.exoplayer.offline.DownloadManager;
 import androidx.media3.exoplayer.offline.DownloadNotificationHelper;
+import androidx.media3.exoplayer.offline.DownloadRequest;
 import java.io.File;
 import java.net.CookieHandler;
 import java.net.CookieManager;
@@ -69,7 +75,7 @@ public final class DemoUtil {
 
   /** Returns whether extension renderers should be used. */
   public static boolean useExtensionRenderers() {
-    return BuildConfig.USE_DECODER_EXTENSIONS;
+    return false;
   }
 
   @OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)
@@ -150,16 +156,44 @@ public final class DemoUtil {
     return downloadCache;
   }
 
+  private static final int DOWNLOADS_TO_ADD = 20_000;
+
   @OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)
   private static synchronized void ensureDownloadManagerInitialized(Context context) {
     if (downloadManager == null) {
+      DefaultDownloadIndex defaultDownloadIndex = new
+          DefaultDownloadIndex(getDatabaseProvider(context));
+      for (int i = 0; i < DOWNLOADS_TO_ADD; i++) {
+        try {
+          defaultDownloadIndex.putDownload(
+              new Download(
+                  new DownloadRequest.Builder(
+                      String.valueOf(i),
+                      Uri.EMPTY
+                  ).build(),
+                  Download.STATE_REMOVING,
+                  0,
+                  1,
+                  2,
+                  Download.STOP_REASON_NONE,
+                  Download.FAILURE_REASON_NONE
+              )
+          );
+        } catch (DatabaseIOException e) {
+          throw new RuntimeException(e);
+        }
+      }
       downloadManager =
           new DownloadManager(
               context,
-              getDatabaseProvider(context),
-              getDownloadCache(context),
-              getHttpDataSourceFactory(context),
-              Executors.newFixedThreadPool(/* nThreads= */ 6));
+              defaultDownloadIndex,
+              new DefaultDownloaderFactory(
+                  new CacheDataSource.Factory()
+                      .setCache(getDownloadCache(context))
+                      .setUpstreamDataSourceFactory(getHttpDataSourceFactory(context)),
+                  Executors.newFixedThreadPool(/* nThreads= */ 6)
+              )
+          );
       downloadTracker =
           new DownloadTracker(context, getHttpDataSourceFactory(context), downloadManager);
     }
